@@ -13,7 +13,13 @@ const getUserById = (req, res) => User.findById(req.params.userId)
       res.status(code.not_found).send({ message: 'Запрашиваемый пользователь не найден' });
     }
   })
-  .catch(() => res.status(code.error).send({ message: 'Сервер не может обработать запрос' }));
+  .catch((err) => {
+    if (err.name === 'CastError') {
+      res.status(code.bad_request).send({ message: 'Введен ошибочный ID' });
+    } else {
+      res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+    }
+  });
 
 const createUser = (req, res) => {
   const newUserData = req.body;
@@ -31,7 +37,7 @@ const createUser = (req, res) => {
 const updateUser = (req, res) => {
   const { name, about } = req.body;
   const userId = req.user._id;
-  return User.findByIdAndUpdate(userId, { name, about }, { new: true })
+  return User.findByIdAndUpdate(userId, { name, about }, { new: true, runValidators: true })
     .then((user) => {
       if (user) {
         res.status(code.ok).send(user);
@@ -52,9 +58,9 @@ const updateAvatar = (req, res) => {
   const { avatar } = req.body;
   const userId = req.user._id;
   return User.findByIdAndUpdate(userId, { avatar }, { new: true })
-    .then((user) => {
-      if (user) {
-        res.status(code.ok).send(user);
+    .then((userAvatar) => {
+      if (userAvatar) {
+        res.status(code.ok).send(userAvatar);
       } else {
         res.status(code.not_found).send({ message: 'Запрашиваемый пользователь не найден' });
       }

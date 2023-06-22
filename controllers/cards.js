@@ -27,7 +27,13 @@ const deleteCardById = (req, res) => Card.findByIdAndRemove(req.params.cardId)
       res.status(code.not_found).send({ message: 'Запрашиваемая карточка не найдена' });
     }
   })
-  .catch(() => res.status(code.error).send({ message: 'Сервер не может обработать запрос' }));
+  .catch((err) => {
+    if (err.name === 'CastError') {
+      res.status(code.bad_request).send({ message: 'Произошла ошибка при удалении карточки' });
+    } else {
+      res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+    }
+  });
 
 const putLike = (req, res) => {
   const userId = req.user._id;
@@ -36,31 +42,43 @@ const putLike = (req, res) => {
     { $addToSet: { likes: userId } },
     { new: true },
   )
-    .then((card) => {
-      if (card) {
-        res.status(code.ok).send(card);
+    .then((like) => {
+      if (like) {
+        res.status(code.ok).send(like);
       } else {
         res.status(code.not_found).send({ message: 'Запрашиваемая карточка не найдена' });
       }
     })
-    .catch(() => res.status(code.error).send({ message: 'Сервер не может обработать запрос' }));
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        res.status(code.bad_request).send({ message: 'Произошла ошибка при постановке лайка' });
+      } else {
+        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+      }
+    });
 };
 
-const deleteLike = (req, res) => {
+const removeLike = (req, res) => {
   const userId = req.user._id;
   return Card.findByIdAndUpdate(
     req.params.cardId,
     { $pull: { likes: userId } },
     { new: true },
   )
-    .then((card) => {
-      if (card) {
-        res.status(code.ok).send(card);
+    .then((like) => {
+      if (like) {
+        res.status(code.ok).send(like);
       } else {
         res.status(code.not_found).send({ message: 'Запрашиваемая карточка не найдена' });
       }
     })
-    .catch(() => res.status(code.error).send({ message: 'Сервер не может обработать запрос' }));
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        res.status(code.bad_request).send({ message: 'Произошла ошибка при удалении лайка' });
+      } else {
+        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+      }
+    });
 };
 
 module.exports = {
@@ -68,5 +86,5 @@ module.exports = {
   createCard,
   deleteCardById,
   putLike,
-  deleteLike,
+  removeLike,
 };
