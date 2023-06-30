@@ -1,41 +1,45 @@
 const Card = require('../models/card');
 const code = require('../utils/codes');
+const NotFoundError = require('../errors/NotFoundError');
+const BadRequestError = require('../errors/BadRequestError');
+const ForbiddenError = require('../errors/ForbiddenError');
 
-const getCards = (req, res) => Card.find({})
+const getCards = (req, res, next) => Card.find({})
   .then((cards) => res.status(code.ok).send(cards))
-  .catch(() => res.status(code.error).send({ message: 'Сервер не может обработать запрос' }));
+  .catch(next);
 
-const createCard = (req, res) => {
+const createCard = (req, res, next) => {
   const userId = req.user._id;
   const { name, link } = req.body;
   return Card.create({ name, link, owner: userId })
     .then((newCard) => res.status(code.created).send(newCard))
     .catch((err) => {
       if (err.name === 'ValidationError') {
-        res.status(code.bad_request).send({ message: 'Произошла ошибка при создании карточки' });
-      } else {
-        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+        return next(new BadRequestError('Произошла ошибка при создании карточки'));
       }
+      return next(err);
     });
 };
 
-const deleteCardById = (req, res) => Card.findByIdAndRemove(req.params.cardId)
+const deleteCardById = (req, res, next) => Card.findById(req.params.cardId)
   .then((card) => {
-    if (card) {
-      res.status(code.ok).send(card);
-    } else {
-      res.status(code.not_found).send({ message: 'Запрашиваемая карточка не найдена' });
+    if (!card) {
+      throw new NotFoundError('Запрашиваемая карточка не найдена');
     }
+    if (card.owner.toString() !== req.user._id) {
+      throw new ForbiddenError('Чужую карточку удалить нельзя');
+    }
+    return Card.findByIdAndRemove(req.params.cardId)
+      .then(() => res.status(code.ok).send({ message: 'Карточка удалена' }));
   })
   .catch((err) => {
     if (err.name === 'CastError') {
-      res.status(code.bad_request).send({ message: 'Произошла ошибка при удалении карточки' });
-    } else {
-      res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+      return next(new BadRequestError('Произошла ошибка при удалении карточки'));
     }
+    return next(err);
   });
 
-const putLike = (req, res) => {
+const putLike = (req, res, next) => {
   const userId = req.user._id;
   return Card.findByIdAndUpdate(
     req.params.cardId,
@@ -44,21 +48,19 @@ const putLike = (req, res) => {
   )
     .then((like) => {
       if (like) {
-        res.status(code.ok).send(like);
-      } else {
-        res.status(code.not_found).send({ message: 'Запрашиваемая карточка не найдена' });
+        return res.status(code.ok).send(like);
       }
+      return next(new NotFoundError('Запрашиваемая карточка не найдена'));
     })
     .catch((err) => {
       if (err.name === 'CastError') {
-        res.status(code.bad_request).send({ message: 'Произошла ошибка при постановке лайка' });
-      } else {
-        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+        return next(new BadRequestError('Произошла ошибка при постановке лайка'));
       }
+      return next(err);
     });
 };
 
-const removeLike = (req, res) => {
+const removeLike = (req, res, next) => {
   const userId = req.user._id;
   return Card.findByIdAndUpdate(
     req.params.cardId,
@@ -67,17 +69,15 @@ const removeLike = (req, res) => {
   )
     .then((like) => {
       if (like) {
-        res.status(code.ok).send(like);
-      } else {
-        res.status(code.not_found).send({ message: 'Запрашиваемая карточка не найдена' });
+        return res.status(code.ok).send(like);
       }
+      return next(new NotFoundError('Запрашиваемая карточка не найдена'));
     })
     .catch((err) => {
       if (err.name === 'CastError') {
-        res.status(code.bad_request).send({ message: 'Произошла ошибка при удалении лайка' });
-      } else {
-        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+        return next(new BadRequestError('Произошла ошибка при удалении лайка'));
       }
+      return next(err);
     });
 };
 

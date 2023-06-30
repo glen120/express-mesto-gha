@@ -1,40 +1,81 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const code = require('../utils/codes');
+const NotFoundError = require('../errors/NotFoundError');
+const BadRequestError = require('../errors/BadRequestError');
+const ConflictError = require('../errors/ConflictError');
 
-const getUsers = (req, res) => User.find({})
+const getUsers = (req, res, next) => User.find({})
   .then((users) => res.status(code.ok).send(users))
-  .catch(() => res.status(code.error).send({ message: 'Сервер не может обработать запрос' }));
+  .catch(next);
 
-const getUserById = (req, res) => User.findById(req.params.userId)
+const getUserById = (req, res, next) => User.findById(req.params.userId)
   .then((user) => {
     if (user) {
       res.status(code.ok).send(user);
     } else {
-      res.status(code.not_found).send({ message: 'Запрашиваемый пользователь не найден' });
+      next(new NotFoundError('Запрашиваемый пользователь не найден'));
     }
   })
   .catch((err) => {
     if (err.name === 'CastError') {
-      res.status(code.bad_request).send({ message: 'Введен ошибочный ID' });
-    } else {
-      res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+      return next(new BadRequestError('Ошибочный поисковый запрос'));
     }
+    return next(err);
   });
 
-const createUser = (req, res) => {
-  const newUserData = req.body;
-  return User.create(newUserData)
-    .then((newUser) => res.status(code.created).send(newUser))
+const getCurrentUser = (req, res, next) => User.findById(req.user._id)
+  .then((user) => {
+    if (user) {
+      res.status(code.ok).send(user);
+    } else {
+      next(new NotFoundError('Запрашиваемый пользователь не найден'));
+    }
+  })
+  .catch((err) => {
+    if (err.name === 'CastError') {
+      return next(new BadRequestError('Ошибочный поисковый запрос'));
+    }
+    return next(err);
+  });
+
+const createUser = (req, res, next) => {
+  const {
+    name, about, avatar, email, password,
+  } = req.body;
+  User.findOne({ email })
+    .then((user) => {
+      if (user) {
+        throw new ConflictError('Пользователь с такой почтой уже зарегистрирован');
+      }
+      return bcrypt.hash(password, 10);
+    })
+    .then((hash) => User.create({
+      name, about, avatar, email, password: hash,
+    }))
+    .then((createdUser) => {
+      res.status(code.created).send(createdUser);
+    })
     .catch((err) => {
       if (err.name === 'ValidationError') {
-        res.status(code.bad_request).send({ message: 'Произошла ошибка при создании пользователя' });
-      } else {
-        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+        return next(new BadRequestError('Произошла ошибка при создании пользователя'));
       }
+      return next(err);
     });
 };
 
-const updateUser = (req, res) => {
+const login = (req, res, next) => {
+  const { email, password } = req.body;
+  return User.findUserByCredentials(email, password)
+    .then((user) => {
+      const token = jwt.sign({ _id: user._id }, 'some-secret-key', { expiresIn: '7d' });
+      res.status(code.ok).send({ _id: token });
+    })
+    .catch(next);
+};
+
+const updateUser = (req, res, next) => {
   const { name, about } = req.body;
   const userId = req.user._id;
   return User.findByIdAndUpdate(userId, { name, about }, { new: true, runValidators: true })
@@ -42,19 +83,18 @@ const updateUser = (req, res) => {
       if (user) {
         res.status(code.ok).send(user);
       } else {
-        res.status(code.not_found).send({ message: 'Запрашиваемый пользователь не найден' });
+        next(new NotFoundError('Запрашиваемый пользователь не найден'));
       }
     })
     .catch((err) => {
       if (err.name === 'ValidationError') {
-        res.status(code.bad_request).send({ message: 'Произошла ошибка при обновлении профиля' });
-      } else {
-        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+        return next(new BadRequestError('Произошла ошибка при обновлении профиля'));
       }
+      return next(err);
     });
 };
 
-const updateAvatar = (req, res) => {
+const updateAvatar = (req, res, next) => {
   const { avatar } = req.body;
   const userId = req.user._id;
   return User.findByIdAndUpdate(userId, { avatar }, { new: true })
@@ -62,22 +102,23 @@ const updateAvatar = (req, res) => {
       if (userAvatar) {
         res.status(code.ok).send(userAvatar);
       } else {
-        res.status(code.not_found).send({ message: 'Запрашиваемый пользователь не найден' });
+        next(new NotFoundError('Запрашиваемый пользователь не найден'));
       }
     })
     .catch((err) => {
       if (err.name === 'ValidationError') {
-        res.status(code.bad_request).send({ message: 'Произошла ошибка при обновлении аватара' });
-      } else {
-        res.status(code.error).send({ message: 'Сервер не может обработать запрос' });
+        return next(new BadRequestError('Произошла ошибка при обновлении аватара'));
       }
+      return next(err);
     });
 };
 
 module.exports = {
   getUsers,
   getUserById,
+  getCurrentUser,
   createUser,
+  login,
   updateUser,
   updateAvatar,
 };

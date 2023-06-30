@@ -1,13 +1,19 @@
 const router = require('express').Router();
 const usersRouter = require('./users');
 const cardsRouter = require('./cards');
-const code = require('../utils/codes');
+const { createUser, login } = require('../controllers/users');
+const auth = require('../middlewares/auth');
+const { signupValidator, signinValidator } = require('../middlewares/validation');
+const NotFoundError = require('../errors/NotFoundError');
 
-router.use(usersRouter);
-router.use(cardsRouter);
+router.post('/signup', signupValidator, createUser);
+router.post('/signin', signinValidator, login);
 
-router.all('*', (req, res) => {
-  res.status(code.not_found).send({ message: 'Ошибочный адрес запроса' });
+router.use(auth, usersRouter);
+router.use(auth, cardsRouter);
+
+router.all('*', (req, res, next) => {
+  next(new NotFoundError('Ошибочный адрес запроса'));
 });
 
 module.exports = router;

@@ -1,6 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const { errors } = require('celebrate');
 const router = require('./routes/index');
+const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
@@ -19,15 +21,11 @@ mongoose
 
 app.use(express.json());
 
-// Временное решение авторизации
-app.use((req, res, next) => {
-  req.user = {
-    _id: '64921ec0ca65267ff56d06c7',
-  };
-  next();
-});
-
 app.use(router);
+
+app.use(errors());
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
