@@ -44,13 +44,7 @@ const createUser = (req, res, next) => {
   const {
     name, about, avatar, email, password,
   } = req.body;
-  User.findOne({ email })
-    .then((user) => {
-      if (user) {
-        throw new ConflictError('Пользователь с такой почтой уже зарегистрирован');
-      }
-      return bcrypt.hash(password, 10);
-    })
+  bcrypt.hash(password, 10)
     .then((hash) => User.create({
       name, about, avatar, email, password: hash,
     }))
@@ -60,7 +54,9 @@ const createUser = (req, res, next) => {
       });
     })
     .catch((err) => {
-      if (err.name === 'ValidationError') {
+      if (err.code === 11000) {
+        return next(new ConflictError('Пользователь с такой почтой уже зарегистрирован'));
+      } if (err.name === 'ValidationError') {
         return next(new BadRequestError('Произошла ошибка при создании пользователя'));
       }
       return next(err);
@@ -99,7 +95,7 @@ const updateUser = (req, res, next) => {
 const updateAvatar = (req, res, next) => {
   const { avatar } = req.body;
   const userId = req.user._id;
-  return User.findByIdAndUpdate(userId, { avatar }, { new: true })
+  return User.findByIdAndUpdate(userId, { avatar }, { new: true, runValidators: true })
     .then((userAvatar) => {
       if (userAvatar) {
         res.status(code.ok).send(userAvatar);

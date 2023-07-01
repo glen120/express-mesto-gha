@@ -12,7 +12,7 @@ router.post('/signin', signinValidator, login);
 router.use(auth, usersRouter);
 router.use(auth, cardsRouter);
 
-router.all('*', (req, res, next) => {
+router.all('*', auth, (req, res, next) => {
   next(new NotFoundError('Ошибочный адрес запроса'));
 });
 
